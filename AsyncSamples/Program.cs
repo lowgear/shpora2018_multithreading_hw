@@ -16,23 +16,22 @@ namespace AsyncSamples
 		{
 			try
 			{
-//				var evnt = ApmTest();
-//				Console.WriteLine("Main thread still working");
-//				evnt.WaitOne();
-//				Console.WriteLine("Main thread finishing");
+				var evnt = ApmTest();
+				Console.WriteLine("Main thread still working");
+				evnt.WaitOne();
+				Console.WriteLine("Main thread finishing");
 
 				Task task;
 //				task = FileContinueWith();
 //				task = FileAsync();
 //				task = FileCompareAsync();
-				task = LambdaAsync();
+//				task = LambdaAsync();
 
 //				task = DownloadWebPageAsync();
 
-				Console.WriteLine("Main thread still working");
-				task.Wait();
-				Console.WriteLine("Main thread finishing");
-
+//				Console.WriteLine($"Main thread still working [{Thread.CurrentThread.ManagedThreadId}]");
+//				task.Wait();
+//				Console.WriteLine("Main thread finishing");
 			}
 			catch(Exception ex)
 			{
@@ -51,22 +50,20 @@ namespace AsyncSamples
 
 			var evnt = new AutoResetEvent(false);
 
-			using(var fStream = new FileStream("file1.txt", FileMode.Create, FileAccess.ReadWrite, FileShare.None, WRITE_BLOCK_SIZE, FileOptions.WriteThrough))
-			{
-				var sw = Stopwatch.StartNew();
+			var fStream = new FileStream("file1.txt", FileMode.Create, FileAccess.ReadWrite, FileShare.None, WRITE_BLOCK_SIZE, FileOptions.WriteThrough);
+			var sw = Stopwatch.StartNew();
 
-				fStream.BeginWrite(buf, 0, buf.Length,
-					asyncResult =>
-					{
-						var fs = (FileStream)asyncResult.AsyncState;
-						fs.EndWrite(asyncResult);
-						evnt.Set();
-						Console.WriteLine("Finished disk I/O! in {0} ms (thread {1})", sw.ElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId);
-					}, fStream);
-				Console.WriteLine("Started disk I/O! in {0} ms total (thread {1})", sw.ElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId);
+			fStream.BeginWrite(buf, 0, buf.Length,
+				asyncResult =>
+				{
+					var fs = (FileStream)asyncResult.AsyncState;
+					fs.EndWrite(asyncResult);
+					evnt.Set();
+					Console.WriteLine("Finished disk I/O! in {0} ms (thread {1})", sw.ElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId);
+				}, fStream);
+			Console.WriteLine("Started disk I/O! in {0} ms total (thread {1})", sw.ElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId);
 
-				return evnt;
-			}
+			return evnt;
 		}
 
 		public static Task FileContinueWith()
@@ -75,22 +72,21 @@ namespace AsyncSamples
 			new Random().NextBytes(buf);
 			Console.WriteLine("Generated random data");
 
-			using(var fStream = new FileStream("file2.txt", FileMode.Create, FileAccess.ReadWrite, FileShare.None, WRITE_BLOCK_SIZE, FileOptions.WriteThrough))
+			var fStream = new FileStream("file2.txt", FileMode.Create, FileAccess.ReadWrite, FileShare.None, WRITE_BLOCK_SIZE, FileOptions.WriteThrough);
+
+			var sw = Stopwatch.StartNew();
+
+			var copyToAsyncTask = fStream.WriteAsync(buf, 0, buf.Length);
+			Console.WriteLine("Started disk I/O! in {0} ms (thread {1})", sw.ElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId);
+
+			var resultTask = copyToAsyncTask.ContinueWith(writeTask =>
 			{
-				var sw = Stopwatch.StartNew();
+				if(writeTask.IsFaulted)
+					throw writeTask.Exception;
+				Console.WriteLine("Finished disk I/O! in {0} ms total (thread {1})", sw.ElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId);
+			});
 
-				var copyToAsyncTask = fStream.WriteAsync(buf, 0, buf.Length);
-				Console.WriteLine("Started disk I/O! in {0} ms (thread {1})", sw.ElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId);
-
-				var resultTask = copyToAsyncTask.ContinueWith(writeTask =>
-				{
-					if(writeTask.IsFaulted)
-						throw writeTask.Exception;
-					Console.WriteLine("Finished disk I/O! in {0} ms total (thread {1})", sw.ElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId);
-				});
-				
-				return resultTask;
-			}
+			return resultTask;
 		}
 
 		public static async Task FileAsync()
