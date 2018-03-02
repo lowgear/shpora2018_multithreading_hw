@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Linq;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -14,29 +15,31 @@ namespace NMAP
 		{
 			return Task.Run(() =>
 			{
-				foreach(var ipAddr in ipAddrs)
-				{
-					if(PingAddr(ipAddr) != IPStatus.Success)
-						continue;
+			    Task.WaitAll(ipAddrs.Select(async ipAddr =>
+			    {
+			        if (await PingAddrAsync(ipAddr) != IPStatus.Success)
+			            return;
 
-					foreach(var port in ports)
-						CheckPort(ipAddr, port);
-				}
+
+			        Task.WaitAll(ports
+			            .Select(port => CheckPortAsync(ipAddr, port))
+			            .ToArray());
+			    }).ToArray());
 			});
 		}
 
-		protected IPStatus PingAddr(IPAddress ipAddr, int timeout = 3000)
+		protected async Task<IPStatus> PingAddrAsync(IPAddress ipAddr, int timeout = 3000)
 		{
 			log.Info($"Pinging {ipAddr}");
 			using(var ping = new Ping())
 			{
-				var status = ping.Send(ipAddr, timeout).Status;
-				log.Info($"Pinged {ipAddr}: {status}");
-				return status;
+				var task = await ping.SendPingAsync(ipAddr, timeout);
+				log.Info($"Pinged {ipAddr}: {task.Status}");
+				return task.Status;
 			}
 		}
 
-		protected void CheckPort(IPAddress ipAddr, int port, int timeout = 3000)
+		protected async Task CheckPortAsync(IPAddress ipAddr, int port, int timeout = 3000)
 		{
 			using(var tcpClient = new TcpClient())
 			{

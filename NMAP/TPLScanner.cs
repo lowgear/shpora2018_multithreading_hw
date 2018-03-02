@@ -19,7 +19,7 @@ namespace NMAP
 
 		private Task ProcessIpAddr(IPAddress ipAddr, int[] ports)
 		{
-			return Task.Run(() => PingAddr(ipAddr))
+			return Task.Run(() => PingAddrAsync(ipAddr))
 					.ContinueWith(pingTask =>
 					{
 						if(pingTask.Result != IPStatus.Success)
@@ -27,7 +27,7 @@ namespace NMAP
 
 						foreach(var port in ports)
 							Task.Factory.StartNew(
-								() => CheckPort(ipAddr, port),
+								() => CheckPortAsync(ipAddr, port),
 								TaskCreationOptions.AttachedToParent);
 					});
 		}

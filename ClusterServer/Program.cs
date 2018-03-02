@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -52,13 +54,30 @@ namespace ClusterServer
 
 		private static Func<HttpListenerContext, Task> CreateAsyncCallback(ServerArguments parsedArguments)
 		{
+		    var tokenSources = new ConcurrentDictionary<string, CancellationTokenSource>();
 			return async context =>
 			{
 				var currentRequestNum = Interlocked.Increment(ref RequestsCount);
 				log.InfoFormat("Thread #{0} received request #{1} at {2}",
 					Thread.CurrentThread.ManagedThreadId, currentRequestNum, DateTime.Now.TimeOfDay);
 
-				await Task.Delay(parsedArguments.MethodDuration);
+			    CancellationTokenSource ts;
+			    if (context.Request.QueryString.AllKeys.Contains("abort"))
+			    {
+			        if (tokenSources.TryRemove(context.Request.UserHostAddress + ":" + context.Request.QueryString["guid"], out ts))
+                        ts.Cancel();
+			        log.InfoFormat("Thread #{0} canceled request.",
+			            Thread.CurrentThread.ManagedThreadId);
+			        await context.Response.OutputStream.WriteAsync(new byte[]{}, 0, 0);
+                    return;
+			    }
+
+			    ts = new CancellationTokenSource();
+			    var token = ts.Token;
+			    tokenSources[context.Request.UserHostAddress + ":" + context.Request.QueryString["guid"]] = ts;
+
+		        await Task.Delay(parsedArguments.MethodDuration, ts.Token);
+                
 //				Thread.Sleep(parsedArguments.MethodDuration);
 
 				var encryptedBytes = GetBase64HashBytes(context.Request.QueryString["query"], Encoding.UTF8);
@@ -70,7 +89,7 @@ namespace ClusterServer
 			};
 		}
 
-		private static Action<HttpListenerContext> CreateSyncCallback(ServerArguments parsedArguments)
+	    private static Action<HttpListenerContext> CreateSyncCallback(ServerArguments parsedArguments)
 		{
 			return context =>
 			{

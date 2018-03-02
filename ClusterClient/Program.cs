@@ -24,10 +24,13 @@ namespace ClusterClient
             {
                 var clients = new ClusterClientBase[]
                               {
-                                  new RandomClusterClient(replicaAddresses)
+//                                  new RandomClusterClient(replicaAddresses),
+//                                  new SimultaneousQueriesClient(replicaAddresses), 
+//                                  new RoundRobinClient(replicaAddresses), 
+                                  new SmartClient(replicaAddresses), 
                               };
                 var queries = new[] {"От", "топота", "копыт", "пыль", "по", "полю", "летит", "На", "дворе", "трава", "на", "траве", "дрова"};
-
+                while (true)
                 foreach (var client in clients)
                 {
                     Console.WriteLine("Testing {0} started", client.GetType());

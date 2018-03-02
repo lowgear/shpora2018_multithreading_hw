@@ -28,9 +28,6 @@ namespace ClusterClient.Clients
             return resultTask.Result;
         }
 
-        protected override ILog Log
-        {
-            get { return LogManager.GetLogger(typeof(RandomClusterClient)); }
-        }
+        protected override ILog Log => LogManager.GetLogger(typeof(RandomClusterClient));
     }
 }
